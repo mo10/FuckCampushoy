@@ -41,13 +41,7 @@ namespace FuckCampushoy
                     {
                         cli.Cookies.Add(a.Key,a.Value);
                     }
-                    var response = await cli.Request("https://ustl.cpdaily.com/wec-counselor-stu-apps/stu/notice/queryProcessingNoticeList")
-                        //.WithHeaders(new { Referer = "https://ustl.cpdaily.com/wec-counselor-stu-apps/stu/mobile/index.html",
-                        //    Origin = "https://ustl.cpdaily.com",
-                        //    Sec_Fetch_Mode = "cors",
-                        //    Sec_Fetch_Site = "same-origin",
-                        //    User_Agent= "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36",
-                        //})
+                    var response = await cli.Request("https://ustl.cpdaily.com/wec-counselor-collector-apps/stu/collector/queryCollectorProcessingList")
                         .WithTimeout(10)
                         .PostJsonAsync(new { pageSize = 6, pageNumber = 1 })
                         .ReceiveJson<CollectorList>();
@@ -55,7 +49,7 @@ namespace FuckCampushoy
                     if(response.code != "0")
                     {
                         notifyIcon1.BalloonTipTitle = "更新失败";
-                        notifyIcon1.BalloonTipText = $"返回:{response.code} {response.message}";
+                        notifyIcon1.BalloonTipText = $"{response.message}";
                         notifyIcon1.ShowBalloonTip(10);
 
                         message.Invoke(new Action(() =>
@@ -75,7 +69,62 @@ namespace FuckCampushoy
                         }
                         else
                         {
-
+                            foreach (var f in response.datas.rows)
+                            {
+                                if (f.isHandled == 0 || true)
+                                {
+                                    // 请求问卷内容
+                                    var ret = await cli.Request("https://ustl.cpdaily.com/wec-counselor-collector-apps/stu/collector/getFormFields")
+                                        .WithTimeout(10)
+                                        .PostJsonAsync(new
+                                        {
+                                            pageSize = 10,
+                                            pageNumber = 1,
+                                            formWid = f.formWid,
+                                            collectorWid = f.wid,
+                                        })
+                                        .ReceiveJson<FormMessage>();
+                                    if (ret.code == "0")
+                                    {
+                                        foreach(var row in ret.datas.rows)
+                                        {
+                                            if(row.fieldType != 1)
+                                            {
+                                                notifyIcon1.BalloonTipTitle = "填写失败";
+                                                notifyIcon1.BalloonTipText = $"存在不支持自动回答的问题，请手动提交";
+                                                notifyIcon1.ShowBalloonTip(10);
+                                                return;
+                                            }
+                                            if(row.title.IndexOf("是否") == -1)
+                                            {
+                                                notifyIcon1.BalloonTipTitle = "填写失败";
+                                                notifyIcon1.BalloonTipText = $"模棱两可的问题";
+                                                notifyIcon1.ShowBalloonTip(10);
+                                                return;
+                                            }
+                                            row.value = "否";
+                                            
+                                        }
+                                        // 提交问卷
+                                        var ret2 = await cli.Request("https://ustl.cpdaily.com/wec-counselor-collector-apps/stu/collector/submitForm")
+                                            .WithTimeout(10)
+                                            .PostJsonAsync(new
+                                            {
+                                                schoolTaskWid = 0,
+                                                formWid = f.formWid,
+                                                collectWid = f.wid,
+                                                form = ret.datas.rows,
+                                            })
+                                            .ReceiveJson<SendReq>();
+                                        if (ret2.code != "0")
+                                        {
+                                            notifyIcon1.BalloonTipTitle = "提交失败";
+                                            notifyIcon1.BalloonTipText = $"{ret2.message}";
+                                            notifyIcon1.ShowBalloonTip(10);
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -114,12 +163,14 @@ namespace FuckCampushoy
                 timer.Start();
                 button1.Text = "停止轮询";
                 isStart = true;
+                Task.Run(() => { OnTimedEvent(this, null); });
             }
             else
             {
                 timer.Stop();
                 button1.Text = "开始轮询";
                 isStart = false;
+
             }
         }
 
