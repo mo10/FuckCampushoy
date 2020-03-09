@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using System.Threading.Tasks;
 using System.Web;
@@ -32,9 +33,9 @@ namespace FuckCampushoy
 
         private void Login_Load(object sender, EventArgs e)
         {
-            Task.Run(() => get()).ContinueWith((t)=>
+            Task.Run(() => get()).ContinueWith((t) =>
             {
-                if(this.cookies != null)
+                if (this.cookies != null)
                 {
                     this.Invoke(new Action(() =>
                     {
@@ -43,7 +44,7 @@ namespace FuckCampushoy
                         this.Hide();
                     }));
                 }
-                
+
             });
         }
 
@@ -123,6 +124,7 @@ namespace FuckCampushoy
                                 await cli.Request(retv.data.redirectUrl).GetAsync();
 
                                 this.cookies = cli.Cookies;
+                                saveCookie(this.cookies);
                                 return;
                             case 5:
                                 qrcode.Invoke(new Action(() =>
@@ -160,6 +162,16 @@ namespace FuckCampushoy
         private void button1_Click(object sender, EventArgs e)
         {
             Task.Run(() => get());
+        }
+
+        private void saveCookie(IDictionary<string,Cookie> cookies)
+        {
+            var savefile = AppDomain.CurrentDomain.BaseDirectory + "cookie.bin";
+            var fd = File.OpenWrite(savefile);
+            var binaryFormatter = new BinaryFormatter();
+            binaryFormatter.Serialize(fd, cookies);
+            fd.Close();
+
         }
     }
 }
